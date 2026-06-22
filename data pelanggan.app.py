@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import csv
 
-# 1. Konfigurasi Halaman Streamlit
+# 1. Konfigurasi Halaman Utama
 st.set_page_config(
     page_title="Customer Analytics Dashboard",
     page_icon="📊",
@@ -11,41 +10,42 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Fungsi Load Data Super Aman (Anti-Gagal pembacaan kolom)
-@st.cache_data
+# PENTING: Paksa hapus cache lama yang rusak agar tidak menimbun error
+st.cache_data.clear()
+
+# 2. Fungsi Load Data yang Kebal Error & Toleran terhadap data aneh
 def load_data():
-    # Menggunakan quoting=csv.QUOTE_MINIMAL untuk menangani nama dengan tanda kutip ganda (seperti "Sri Wahyuni, IR")
+    # Menggunakan on_bad_lines='skip' agar jika ada baris rusak di CSV otomatis dilewati tanpa membuat aplikasi crash
     df = pd.read_csv(
         "data_pelanggan (2).csv", 
         sep=";", 
-        skip_blank_lines=True, 
-        quoting=csv.QUOTE_MINIMAL
+        skip_blank_lines=True,
+        on_bad_lines='skip'
     )
     
-    # Hapus baris yang kosong total jika ada
-    df = df.dropna(how='all')
-    
-    # BERSIHKAN NAMA KOLOM (Penting: menghapus spasi tak terlihat di awal/akhir nama kolom)
+    # Bersihkan nama kolom dari spasi tidak terlihat
     df.columns = df.columns.str.strip()
     
-    # Pastikan tipe data numerik bersih
-    df['Umur'] = pd.to_numeric(df['Umur'], errors='coerce').fillna(0).astype(int)
-    df['Nilai Belanja Setahun'] = pd.to_numeric(df['Nilai Belanja Setahun'], errors='coerce').fillna(0).astype(int)
-    
+    # Ubah tipe data kolom angka agar aman
+    if 'Umur' in df.columns:
+        df['Umur'] = pd.to_numeric(df['Umur'], errors='coerce').fillna(0).astype(int)
+    if 'Nilai Belanja Setahun' in df.columns:
+        df['Nilai Belanja Setahun'] = pd.to_numeric(df['Nilai Belanja Setahun'], errors='coerce').fillna(0).astype(int)
+        
     return df
 
 try:
     df = load_data()
 
-    # Cek darurat apakah kolom utama yang dibutuhkan ada
+    # Cek apakah kolom wajib ada di file CSV
     kolom_wajib = ['Jenis Kelamin', 'Tipe Residen', 'Umur', 'Profesi', 'Nilai Belanja Setahun']
     missing_cols = [col for col in kolom_wajib if col not in df.columns]
     
     if missing_cols:
-        st.error(f"❌ File CSV terbaca, tapi kolom berikut tidak ditemukan: {missing_cols}")
-        st.write("Kolom yang terdeteksi di file kamu saat ini adalah:", list(df.columns))
+        st.error(f"⚠️ Kolom berikut tidak ditemukan di file CSV kamu: {missing_cols}")
+        st.info(f"Kolom yang terdeteksi di dalam file kamu saat ini adalah: {list(df.columns)}")
     else:
-        # 3. Sidebar Kontrol Filter
+        # 3. Bagian Sidebar (Filter Kontrol)
         st.sidebar.header("⚙️ Filter Data")
         
         # Filter Jenis Kelamin
@@ -56,14 +56,14 @@ try:
         residen_options = ["Semua"] + sorted(list(df['Tipe Residen'].dropna().unique()))
         selected_residen = st.sidebar.selectbox("Pilih Tipe Residen:", residen_options)
         
-        # Filter Umur (Slider Dinamis)
+        # Filter Umur (Slider)
         min_age = int(df['Umur'].min())
         max_age = int(df['Umur'].max())
         if min_age == max_age:
             max_age += 1
         selected_age = st.sidebar.slider("Rentang Umur:", min_age, max_age, (min_age, max_age))
 
-        # Menerapkan Filter ke DataFrame
+        # Terapkan Filter ke Data
         filtered_df = df.copy()
         if selected_jk != "Semua":
             filtered_df = filtered_df[filtered_df['Jenis Kelamin'] == selected_jk]
@@ -71,12 +71,12 @@ try:
             filtered_df = filtered_df[filtered_df['Tipe Residen'] == selected_residen]
         filtered_df = filtered_df[(filtered_df['Umur'] >= selected_age[0]) & (filtered_df['Umur'] <= selected_age[1])]
 
-        # 4. Header Dashboard
+        # 4. Header Atas Dashboard
         st.title("📊 Dashboard Analisis Pelanggan")
-        st.markdown("Dashboard interaktif untuk memantau profil dan performa nilai belanja pelanggan.")
+        st.markdown("Visualisasi data profil pelanggan dan total nilai belanja tahunan secara interaktif.")
         st.markdown("---")
 
-        # 5. Baris KPI (Ringkasan Angka Utama)
+        # 5. Blok Ringkasan Angka Utama (KPI)
         total_pelanggan = len(filtered_df)
         total_belanja = filtered_df['Nilai Belanja Setahun'].sum()
         rata_belanja = filtered_df['Nilai Belanja Setahun'].mean() if total_pelanggan > 0 else 0
@@ -91,7 +91,7 @@ try:
 
         st.markdown("---")
 
-        # 6. Baris Visualisasi Grafik Pertama
+        # 6. Bagian Grafik Pertama
         col_chart1, col_chart2 = st.columns(2)
 
         with col_chart1:
@@ -111,7 +111,7 @@ try:
                 fig_profesi.update_layout(showlegend=False)
                 st.plotly_chart(fig_profesi, use_container_width=True)
             else:
-                st.info("Tidak ada data untuk filter ini.")
+                st.info("Tidak ada data yang cocok dengan kriteria filter.")
 
         with col_chart2:
             st.subheader("🎂 Distribusi Umur Pelanggan")
@@ -126,15 +126,15 @@ try:
                 )
                 st.plotly_chart(fig_umur, use_container_width=True)
             else:
-                st.info("Tidak ada data untuk filter ini.")
+                st.info("Tidak ada data yang cocok dengan kriteria filter.")
 
         st.markdown("---")
 
-        # 7. Baris Visualisasi Kedua & Tabel Data
+        # 7. Bagian Grafik Kedua & Tabel Data Asli
         col_chart3, col_data = st.columns([1, 1.5])
 
         with col_chart3:
-            st.subheader("🏠 Kontribusi Nilai Belanja per Tipe Residen")
+            st.subheader("🏠 Kontribusi Belanja per Tipe Residen")
             if not filtered_df.empty:
                 fig_residen = px.pie(
                     filtered_df,
@@ -146,10 +146,10 @@ try:
                 fig_residen.update_traces(textinfo='percent+label')
                 st.plotly_chart(fig_residen, use_container_width=True)
             else:
-                st.info("Tidak ada data untuk filter ini.")
+                st.info("Tidak ada data yang cocok dengan kriteria filter.")
 
         with col_data:
-            st.subheader("📋 Tabel Data Pelanggan Terfilter")
+            st.subheader("📋 Tabel Ringkasan Data Pelanggan")
             st.dataframe(
                 filtered_df,
                 use_container_width=True,
@@ -157,6 +157,6 @@ try:
             )
 
 except FileNotFoundError:
-    st.error("❌ File **'data_pelanggan (2).csv'** tidak ditemukan! Pastikan file ini berada dalam satu folder yang sama persis dengan file `app.py` kamu.")
+    st.error("❌ File **'data_pelanggan (2).csv'** tidak ditemukan! Pastikan file ini diletakkan satu folder dengan file `app.py` kamu.")
 except Exception as e:
-    st.error(f"⚠️ Terjadi kesalahan pembacaan file: {e}")
+    st.error(f"⚠️ Terjadi kesalahan sistem saat membaca file: {e}")
