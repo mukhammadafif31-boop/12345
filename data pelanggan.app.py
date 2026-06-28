@@ -103,37 +103,26 @@ def load_data_langsung():
     }
     return pd.DataFrame(raw_data)
 
-# Memuat data terintegrasi penuh
 df = load_data_langsung()
-
-st.success(f"📊 Dashboard Aktif: {len(df)} Data Pelanggan Terkunci dalam Sistem.")
 
 kolom_angka = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
 kolom_teks = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
-# 4. Pengaturan Menu Kontrol di Sidebar
-st.sidebar.header("⚙️ Menu Kontrol & Filter")
+# 4. Filter Kategori Tetap di Sidebar
+st.sidebar.header("⚙️ Filter Dimensi")
 filtered_df = df.copy()
 
-# Filter Jenis Kelamin
 if 'Jenis Kelamin' in df.columns:
     opsi_jk = ["Semua"] + sorted(list(df['Jenis Kelamin'].dropna().unique()))
     pilihan_jk = st.sidebar.selectbox("Filter Jenis Kelamin:", opsi_jk)
     if pilihan_jk != "Semua":
         filtered_df = filtered_df[filtered_df['Jenis Kelamin'] == pilihan_jk]
         
-# Filter Tipe Residen
 if 'Tipe Residen' in df.columns:
     opsi_residen = ["Semua"] + sorted(list(df['Tipe Residen'].dropna().unique()))
     pilihan_residen = st.sidebar.selectbox("Filter Tipe Residen:", opsi_residen)
     if pilihan_residen != "Semua":
         filtered_df = filtered_df[filtered_df['Tipe Residen'] == pilihan_residen]
-
-# Fitur Pencarian Nama
-st.sidebar.markdown("### 📝 Pencarian")
-search_query = st.sidebar.text_input("Cari Nama Pelanggan:")
-if search_query:
-    filtered_df = filtered_df[filtered_df['Nama Pelanggan'].str.contains(search_query, case=False, na=False)]
 
 # 5. Blok Metrik Utama (KPI Korporat)
 st.markdown("### 📈 Ringkasan Eksekutif")
@@ -184,3 +173,39 @@ with tab1:
 
 with tab2:
     st.subheader("🔬 Analisis Ringkasan Matematika & Statistik")
+    if not filtered_df.empty:
+        stats_df = filtered_df[kolom_angka].describe()
+        stats_df.index = [
+            'Jumlah Data', 'Rata-rata', 'Simpangan Baku', 'Nilai Minimum', 
+            'Kuartil 25%', 'Median (50%)', 'Kuartil 75%', 'Nilai Maksimum'
+        ]
+        st.dataframe(stats_df, use_container_width=True)
+
+with tab3:
+    st.subheader("📋 Tabel Ringkasan Data Pelanggan Aktif")
+    
+    # 🌟 FITUR BARU: Cari Nama Pelanggan Model Multiselect Sesuai Gambar Request
+    nama_pilihan = st.multiselect(
+        "🔍 Cari Nama Pelanggan (Bisa pilih satu atau banyak sekaligus):",
+        options=sorted(list(filtered_df['Nama Pelanggan'].unique())),
+        help="Pilih nama-nama pelanggan khusus yang ingin kamu bedah datanya"
+    )
+    
+    # Terapkan filter nama jika ada yang dipilih
+    if nama_pilihan:
+        tabel_akhir = filtered_df[filtered_df['Nama Pelanggan'].isin(nama_pilihan)]
+    else:
+        tabel_akhir = filtered_df.copy()
+        
+    st.markdown("---")
+    st.dataframe(tabel_akhir, use_container_width=True, hide_index=True)
+    
+    if not tabel_akhir.empty:
+        st.markdown("---")
+        csv_data = tabel_akhir.to_csv(index=False, sep=';').encode('utf-8')
+        st.download_button(
+            label="📥 Unduh Hasil Filter Ini (CSV)",
+            data=csv_data,
+            file_name="ekspor_data_pelanggan.csv",
+            mime="text/csv"
+        )
