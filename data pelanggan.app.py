@@ -3,29 +3,29 @@ import pandas as pd
 
 # 1. Konfigurasi Halaman Utama
 st.set_page_config(
-    page_title="Universal Business Intelligence Dashboard",
-    page_icon="🚀",
+    page_title="Premium Customer Business Intelligence",
+    page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Bersihkan cache lama agar data selalu diperbarui jika ganti file
+# Bersihkan cache lama agar data selalu fresh
 st.cache_data.clear()
 
-# 2. Header Dashboard Eksekutif
-st.title("🚀 Universal Business Intelligence Dashboard")
-st.markdown("Ubah file CSV apa saja menjadi visualisasi interaktif dan analisis statistik mendalam secara instan.")
+# 2. Header Atas Dashboard Eksekutif
+st.title("💎 Premium Customer Business Intelligence Dashboard")
+st.markdown("Analisis visual dan statistik mendalam berbasis data pelanggan secara instan dan interaktif.")
 st.markdown("---")
 
 # 3. Fitur Unggah File CSV
 uploaded_file = st.file_uploader(
-    "📂 Seret atau pilih file CSV kamu di sini:", 
+    "📂 Seret atau pilih file 'data_pelanggan (2).csv' kamu di sini:", 
     type=["csv"]
 )
 
 if uploaded_file is not None:
     try:
-        # Cek otomatis karakter pemisah (delimiter) koma (,) atau semikolon (;)
+        # Deteksi otomatis pembatas karakter (delimiter) semikolon (;) atau koma (,)
         sample = uploaded_file.read(2048).decode('utf-8', errors='ignore')
         uploaded_file.seek(0)
         separator = ";" if sample.count(";") > sample.count(",") else ","
@@ -41,9 +41,15 @@ if uploaded_file is not None:
         # Bersihkan nama kolom dari spasi tidak terlihat
         df.columns = df.columns.str.strip()
         
-        st.success(f"📊 Berhasil Memuat Data: {len(df)} Baris & {len(df.columns)} Kolom Terdeteksi.")
+        st.success(f"📊 Berhasil Memuat Data: {len(df)} Pelanggan Terdaftar.")
 
-        # Deteksi tipe kolom secara otomatis
+        # Konversi data angka agar aman saat dihitung
+        if 'Umur' in df.columns:
+            df['Umur'] = pd.to_numeric(df['Umur'], errors='coerce').fillna(0).astype(int)
+        if 'Nilai Belanja Setahun' in df.columns:
+            df['Nilai Belanja Setahun'] = pd.to_numeric(df['Nilai Belanja Setahun'], errors='coerce').fillna(0).astype(int)
+
+        # Deteksi tipe kolom secara otomatis untuk kebutuhan visualisasi kustom
         kolom_angka = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
         kolom_teks = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
@@ -52,18 +58,22 @@ if uploaded_file is not None:
         
         filtered_df = df.copy()
         
-        # Filter dinamis untuk 2 kolom teks pertama agar sidebar tetap rapi
-        if len(kolom_teks) > 0:
-            st.sidebar.markdown("### 🔍 Filter Kategori")
-            for col in kolom_teks[:2]:
-                opsi = ["Semua"] + sorted(list(df[col].dropna().unique()))
-                pilihan = st.sidebar.selectbox(f"Berdasarkan {col}:", opsi)
-                if pilihan != "Semua":
-                    filtered_df = filtered_df[filtered_df[col] == pilihan]
+        # Filter dinamis menggunakan kolom yang ada di data kamu
+        if 'Jenis Kelamin' in df.columns:
+            opsi_jk = ["Semua"] + sorted(list(df['Jenis Kelamin'].dropna().unique()))
+            pilihan_jk = st.sidebar.selectbox("Filter Jenis Kelamin:", opsi_jk)
+            if pilihan_jk != "Semua":
+                filtered_df = filtered_df[filtered_df['Jenis Kelamin'] == pilihan_jk]
+                
+        if 'Tipe Residen' in df.columns:
+            opsi_residen = ["Semua"] + sorted(list(df['Tipe Residen'].dropna().unique()))
+            pilihan_residen = st.sidebar.selectbox("Filter Tipe Residen:", opsi_residen)
+            if pilihan_residen != "Semua":
+                filtered_df = filtered_df[filtered_df['Tipe Residen'] == pilihan_residen]
 
-        # Fitur Pencarian Global Kata Kunci
-        st.sidebar.markdown("### 📝 Pencarian Spesifik")
-        search_query = st.sidebar.text_input("Cari Kata Kunci Apa Saja:")
+        # Fitur Pencarian Global Kata Kunci (Bisa cari nama, profesi, dll)
+        st.sidebar.markdown("### 📝 Pencarian Pelanggan")
+        search_query = st.sidebar.text_input("Cari Nama atau Kata Kunci:")
         if search_query:
             mask = filtered_df.apply(
                 lambda r: r.astype(str).str.contains(search_query, case=False).any(), 
@@ -71,24 +81,23 @@ if uploaded_file is not None:
             )
             filtered_df = filtered_df[mask]
 
-        # 5. Blok Metrik Utama (KPI Ringsan)
+        # 5. Blok Metrik Utama (KPI Korporat)
         st.markdown("### 📈 Ringkasan Eksekutif")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric(label="📊 Total Data Terfilter", value=f"{len(filtered_df)} Baris")
+            st.metric(label="📊 Total Pelanggan", value=f"{len(filtered_df)} Orang")
         
-        if len(kolom_angka) > 0:
-            kolom_kpi = kolom_angka[0]
+        if 'Nilai Belanja Setahun' in filtered_df.columns:
             with col2:
-                total_nilai = filtered_df[kolom_kpi].sum()
-                st.metric(label=f"💰 Total {kolom_kpi}", value=f"{total_nilai:,.0f}")
+                total_nilai = filtered_df['Nilai Belanja Setahun'].sum()
+                st.metric(label="💰 Total Belanja Terfilter", value=f"Rp {total_nilai:,.0f}")
             with col3:
-                rata_nilai = filtered_df[kolom_kpi].mean() if len(filtered_df) > 0 else 0
-                st.metric(label=f"📈 Rata-rata {kolom_kpi}", value=f"{rata_nilai:,.0f}")
+                rata_nilai = filtered_df['Nilai Belanja Setahun'].mean() if len(filtered_df) > 0 else 0
+                st.metric(label="📈 Rata-rata Belanja", value=f"Rp {rata_nilai:,.0f}")
             with col4:
-                maks_nilai = filtered_df[kolom_kpi].max() if len(filtered_df) > 0 else 0
-                st.metric(label=f"🏆 {kolom_kpi} Tertinggi", value=f"{maks_nilai:,.0f}")
+                maks_nilai = filtered_df['Nilai Belanja Setahun'].max() if len(filtered_df) > 0 else 0
+                st.metric(label="🏆 Belanja Tertinggi", value=f"Rp {maks_nilai:,.0f}")
         else:
             with col2: st.metric(label="💰 Total Nilai", value="0")
             with col3: st.metric(label="📈 Rata-rata", value="0")
@@ -104,19 +113,22 @@ if uploaded_file is not None:
         ])
 
         with tab1:
-            st.subheader("🛠️ Pengaturan & Konfigurasi Grafik Kustom")
+            st.subheader("🛠️ Konfigurasi Grafik Kustom")
             if len(kolom_teks) > 0 and len(kolom_angka) > 0:
                 col_sel1, col_sel2, col_sel3 = st.columns(3)
                 with col_sel1:
-                    sb_x = st.selectbox("Pilih Sumbu X (Kategori Teks):", kolom_teks)
+                    # Otomatis merekomendasikan 'Profesi' atau teks lain
+                    idx_x = kolom_teks.index('Profesi') if 'Profesi' in kolom_teks else 0
+                    sb_x = st.selectbox("Sumbu X (Kategori):", kolom_teks, index=idx_x)
                 with col_sel2:
-                    sb_y = st.selectbox("Pilih Sumbu Y (Nilai Angka):", kolom_angka)
+                    # Otomatis merekomendasikan 'Nilai Belanja Setahun' atau angka lain
+                    idx_y = kolom_angka.index('Nilai Belanja Setahun') if 'Nilai Belanja Setahun' in kolom_angka else 0
+                    sb_y = st.selectbox("Sumbu Y (Nilai Ukur):", kolom_angka, index=idx_y)
                 with col_sel3:
-                    tipe_hitung = st.radio("Metode Perhitungan Grafik:", ["Total Keseluruhan (Sum)", "Rata-rata (Mean)"])
+                    tipe_hitung = st.radio("Metode Perhitungan:", ["Total Keseluruhan (Sum)", "Rata-rata (Mean)"])
                 
                 st.markdown("---")
                 
-                # Proses kalkulasi data grafik sesuai metode perhitungan terpilih
                 if not filtered_df.empty:
                     if tipe_hitung == "Total Keseluruhan (Sum)":
                         chart_data = filtered_df.groupby(sb_x)[sb_y].sum()
@@ -149,16 +161,16 @@ if uploaded_file is not None:
                     use_container_width=True
                 )
             else:
-                st.info("Tidak ditemukan kolom angka untuk menghasilkan perhitungan statistik deskriptif.")
+                st.info("Tidak ditemukan kolom angka untuk menghasilkan perhitungan statistik.")
 
         with tab3:
             st.subheader("📋 Manajemen Tampilan Tabel Data")
             
-            # Fitur keren: Memilih kolom secara dinamis untuk menyembunyikan data sensitif/tidak penting
+            # Memilih kolom secara dinamis agar tabel rapi dan tidak terlalu lebar
             kolom_terpilih = st.multiselect(
                 "Pilih kolom yang ingin ditampilkan pada tabel (Kosongkan untuk melihat semua):",
                 options=df.columns.tolist(),
-                default=df.columns.tolist()[:5] # Tampilkan 5 kolom pertama secara default agar rapi
+                default=df.columns.tolist()[:6]
             )
             
             tabel_tampil = filtered_df[kolom_terpilih] if kolom_terpilih else filtered_df
@@ -174,13 +186,13 @@ if uploaded_file is not None:
                 st.markdown("---")
                 csv_data = filtered_df.to_csv(index=False, sep=';').encode('utf-8')
                 st.download_button(
-                    label="📥 Unduh Hasil Analisis & Filter (Format CSV)",
+                    label="📥 Unduh Hasil Analisis & Filter Ini (Format CSV)",
                     data=csv_data,
-                    file_name="analisis_dashboard_eksekutif.csv",
+                    file_name="analisis_data_pelanggan.csv",
                     mime="text/csv"
                 )
 
     except Exception as e:
-        st.error(f"⚠️ Terjadi hambatan saat meraba data file CSV: {e}")
+        st.error(f"⚠️ Terjadi hambatan saat memproses file CSV: {e}")
 else:
-    st.info("💡 Selamat Datang! Silakan unggah file CSV apa saja menggunakan tombol di atas untuk memulai analisis cerdas.")
+    st.info("💡 Selamat Datang! Silakan unggah file **data_pelanggan (2).csv** kamu menggunakan tombol di atas untuk melihat visualisasi dashboard premium.")
